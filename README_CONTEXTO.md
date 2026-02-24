@@ -48,6 +48,9 @@ src/
 | Comando | Descrição |
 |---------|-----------|
 | `npm run scrape` | Executa scraper (TJSP CJPG) |
+| `npm run dev` | Inicia servidor web com frontend em http://localhost:3000 |
+| `npm run test:e2e` | Teste E2E (servidor + API, sem scraper real) |
+| `npm run test:e2e:full` | Teste E2E completo (inclui scraper real, ~1 min) |
 | `npm run process` | Processa todos os PDFs em `runs/raw/` e insere no DB |
 | `npx ts-node src/analysis/stats.ts` | Exibe estatísticas por juiz/label |
 

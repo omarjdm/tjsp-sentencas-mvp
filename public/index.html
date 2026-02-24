@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TJSP Sentenças - Scraper</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --border: #2d3a4d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --error: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 2rem;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: var(--accent);
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      max-width: 640px;
+      margin-bottom: 1.5rem;
+    }
+    label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    input, button {
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      font-weight: 600;
+      padding: 0.6rem 1.25rem;
+      align-self: end;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .summary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+    }
+    .summary.hidden { display: none; }
+    .summary .count { color: var(--success); font-weight: 600; }
+    .error-msg {
+      color: var(--error);
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+    }
+    tr:hover td { background: rgba(88, 166, 255, 0.06); }
+    .excerpt {
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-muted);
+    }
+    .loading {
+      display: inline-block;
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 0.5rem;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .results-section { margin-top: 2rem; }
+    .results-section.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>TJSP Sentenças — Scraper</h1>
+
+  <form id="form">
+    <div class="form-grid">
+      <div>
+        <label for="dateFrom">Data início (DD/MM/AAAA)</label>
+        <input type="text" id="dateFrom" name="dateFrom" placeholder="01/01/2024" required>
+      </div>
+      <div>
+        <label for="dateTo">Data fim (DD/MM/AAAA)</label>
+        <input type="text" id="dateTo" name="dateTo" placeholder="31/01/2024" required>
+      </div>
+      <div>
+        <label for="juiz">Nome do juiz</label>
+        <input type="text" id="juiz" name="juiz" placeholder="Ex: João Silva" required>
+      </div>
+      <div>
+        <label for="maxPdfs">Quantidade de PDFs</label>
+        <input type="number" id="maxPdfs" name="maxPdfs" min="1" value="10" required>
+      </div>
+      <div style="display: flex; align-items: flex-end;">
+        <button type="submit" id="submitBtn">Executar</button>
+      </div>
+    </div>
+    <div id="errorMsg" class="error-msg hidden"></div>
+  </form>
+
+  <div id="summary" class="summary hidden">
+    <span class="count" id="summaryText"></span>
+  </div>
+
+  <div id="resultsSection" class="results-section hidden">
+    <h2 style="font-size: 1rem; margin-bottom: 0.75rem;">Resultados</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Processo</th>
+          <th>Juiz</th>
+          <th>Resultado</th>
+          <th>Trecho</th>
+        </tr>
+      </thead>
+      <tbody id="resultsBody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const form = document.getElementById('form');
+    const submitBtn = document.getElementById('submitBtn');
+    const errorMsg = document.getElementById('errorMsg');
+    const summary = document.getElementById('summary');
+    const summaryText = document.getElementById('summaryText');
+    const resultsSection = document.getElementById('resultsSection');
+    const resultsBody = document.getElementById('resultsBody');
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.classList.remove('hidden');
+    }
+    function hideError() {
+      errorMsg.textContent = '';
+      errorMsg.classList.add('hidden');
+    }
+
+    function setLoading(loading) {
+      submitBtn.disabled = loading;
+      submitBtn.innerHTML = loading
+        ? '<span class="loading"></span> Executando...'
+        : 'Executar';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+
+      const dateFrom = document.getElementById('dateFrom').value.trim();
+      const dateTo = document.getElementById('dateTo').value.trim();
+      const juiz = document.getElementById('juiz').value.trim();
+      const maxPdfs = parseInt(document.getElementById('maxPdfs').value, 10);
+
+      if (!dateFrom || !dateTo || !juiz) {
+        showError('Preencha data início, data fim e nome do juiz.');
+        return;
+      }
+      if (isNaN(maxPdfs) || maxPdfs < 1) {
+        showError('Quantidade de PDFs deve ser maior que 0.');
+        return;
+      }
+
+      const dateRe = /^\d{2}\/\d{2}\/\d{4}$/;
+      if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
+        showError('Datas devem estar no formato DD/MM/AAAA.');
+        return;
+      }
+
+      setLoading(true);
+      summary.classList.add('hidden');
+      resultsSection.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dateFrom, dateTo, juiz, maxPdfs }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          showError(data.error || `Erro ${res.status}`);
+          return;
+        }
+
+        summary.classList.remove('hidden');
+        summaryText.textContent = `${data.downloaded} PDF(s) baixado(s), ${data.processed} processado(s).`;
+
+        resultsSection.classList.remove('hidden');
+        resultsBody.innerHTML = '';
+
+        if (data.decisions && data.decisions.length > 0) {
+          data.decisions.forEach((d) => {
+            const tr = document.createElement('tr');
+            const excerpt = (d.outcome_excerpt || '').slice(0, 120);
+            tr.innerHTML = `
+              <td>${escapeHtml(d.process_number)}</td>
+              <td>${escapeHtml(d.judge_name)}</td>
+              <td>${escapeHtml(d.outcome_label)}</td>
+              <td><span class="excerpt" title="${escapeHtml(d.outcome_excerpt || '')}">${escapeHtml(excerpt)}${excerpt.length >= 120 ? '…' : ''}</span></td>
+            `;
+            resultsBody.appendChild(tr);
+          });
+        } else {
+          resultsBody.innerHTML = '<tr><td colspan="4">Nenhuma decisão encontrada.</td></tr>';
+        }
+      } catch (err) {
+        showError(err.message || 'Erro ao conectar com o servidor.');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s ?? '';
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

@@ -28,16 +28,35 @@ function agentLog(runId: string, hypothesisId: string, location: string, message
 }
 
 // =============================
+// TIPOS
+// =============================
+export interface ScraperParams {
+  dateFrom: string;
+  dateTo: string;
+  juiz: string;
+  maxPdfs: number;
+}
+
+export interface DecisionRow {
+  process_number: string;
+  judge_name: string;
+  outcome_label: string;
+  outcome_excerpt: string;
+}
+
+export interface ScraperResult {
+  downloaded: number;
+  processed: number;
+  decisions: DecisionRow[];
+}
+
+// =============================
 // VARIÁVEIS DE AMBIENTE
 // =============================
 const CJPG_URL = process.env.TJSP_CJPG_URL!;
 const HEADLESS = (process.env.HEADLESS ?? "false") === "true";
 const SLOW_MO_MS = Number(process.env.SLOW_MO_MS ?? "0");
-const MAX_RESULTS = Number(process.env.MAX_RESULTS ?? "30");
-
-const DATE_FROM = process.env.DATE_FROM!;
-const DATE_TO = process.env.DATE_TO!;
-const JUIZ = process.env.JUIZ!;
+const MAX_RESULTS_ENV = Number(process.env.MAX_RESULTS ?? "30");
 
 // =============================
 // FUNÇÃO PARA VALIDAR ENV
@@ -46,7 +65,7 @@ function requireEnv(name: string, v?: string) {
   if (!v) throw new Error(`Missing env var: ${name}`);
 }
 
-export async function main(): Promise<void> {
+export async function main(params?: ScraperParams): Promise<ScraperResult> {
   // #region agent log
   agentLog("pre-fix-2", "H5", "src/scraper.ts:51", "scraper start", {
     dbPath: process.env.DB_PATH ?? null,
@@ -55,6 +74,11 @@ export async function main(): Promise<void> {
   });
   // #endregion
 
+  const DATE_FROM = params?.dateFrom ?? process.env.DATE_FROM!;
+  const DATE_TO = params?.dateTo ?? process.env.DATE_TO!;
+  const JUIZ = params?.juiz ?? process.env.JUIZ!;
+  const maxPdfs = params?.maxPdfs ?? MAX_RESULTS_ENV;
+
   // =============================
   // VALIDAÇÃO DE VARIÁVEIS
   // =============================
@@ -62,6 +86,8 @@ export async function main(): Promise<void> {
   requireEnv("DATE_FROM", DATE_FROM);
   requireEnv("DATE_TO", DATE_TO);
   requireEnv("JUIZ", JUIZ);
+
+  const decisions: DecisionRow[] = [];
 
   // =============================
   // INICIALIZA BANCO
@@ -195,7 +221,7 @@ export async function main(): Promise<void> {
     // #endregion
     console.warn("Nenhum resultado encontrado. Screenshot salvo em runs/raw/_debug_screenshot.png");
     await browser.close();
-    return;
+    return { downloaded: 0, processed: 0, decisions: [] };
   }
 
   // =============================
@@ -210,7 +236,7 @@ export async function main(): Promise<void> {
   });
   // #endregion
 
-  const MAX = Math.min(total, 10);
+  const MAX = Math.min(total, maxPdfs);
 
   // =============================
   // LOOP SOBRE CADA RESULTADO
@@ -268,9 +294,10 @@ export async function main(): Promise<void> {
       const dispositivo = extractDispositivoWindow(text);
       const { label, excerpt } = extractOutcome(dispositivo);
 
+      const processNumber = processNumberRaw || nuProcesso;
       insert.run({
         source_url: pdfUrl,
-        process_number: processNumberRaw || nuProcesso,
+        process_number: processNumber,
         judge_name: JUIZ,
         court_unit: "",
         decision_date: "",
@@ -280,9 +307,15 @@ export async function main(): Promise<void> {
         text_len: text.length,
         has_text: text.length > 0 ? 1 : 0,
       });
+      decisions.push({
+        process_number: processNumber,
+        judge_name: JUIZ,
+        outcome_label: label,
+        outcome_excerpt: excerpt,
+      });
       // #region agent log
       agentLog("pre-fix-2", "H7", "src/scraper.ts:225", "row inserted", {
-        processNumber: processNumberRaw || nuProcesso,
+        processNumber,
         outcomeLabel: label,
         hasText: text.length > 0 ? 1 : 0,
       });
@@ -315,4 +348,9 @@ export async function main(): Promise<void> {
   });
   // #endregion
   console.log("Done.");
+  return {
+    downloaded: decisions.length,
+    processed: decisions.length,
+    decisions,
+  };
 }
