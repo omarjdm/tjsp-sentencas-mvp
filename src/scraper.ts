@@ -7,6 +7,7 @@ import { openDb } from "./db";
 import { extractOutcome } from "./parse/outcome";
 import { extractTextFromPdf } from "./pdf/extractText";
 import { extractDispositivoWindow } from "./analysis/findDispositivo";
+import { extractMetadata } from "./analysis/extractMetadata";
 
 function agentLog(runId: string, hypothesisId: string, location: string, message: string, data: Record<string, unknown>) {
   fetch("http://127.0.0.1:7710/ingest/29c78868-1f8b-447e-ae6f-d5ec1f570675", {
@@ -42,6 +43,12 @@ export interface DecisionRow {
   judge_name: string;
   outcome_label: string;
   outcome_excerpt: string;
+  classe?: string;
+  assunto?: string;
+  court_unit?: string;
+  decision_date?: string;
+  requerente?: string;
+  requerido?: string;
 }
 
 export interface ScraperResult {
@@ -96,9 +103,9 @@ export async function main(params?: ScraperParams): Promise<ScraperResult> {
 
   const insert = db.prepare(`
     INSERT OR REPLACE INTO decisions
-      (source_url, process_number, judge_name, court_unit, decision_date, outcome_label, outcome_excerpt, pdf_path, text_len, has_text)
+      (source_url, process_number, judge_name, court_unit, decision_date, outcome_label, outcome_excerpt, pdf_path, text_len, has_text, classe, assunto, requerente, requerido)
     VALUES
-      (@source_url, @process_number, @judge_name, @court_unit, @decision_date, @outcome_label, @outcome_excerpt, @pdf_path, @text_len, @has_text)
+      (@source_url, @process_number, @judge_name, @court_unit, @decision_date, @outcome_label, @outcome_excerpt, @pdf_path, @text_len, @has_text, @classe, @assunto, @requerente, @requerido)
   `);
 
   // =============================
@@ -293,25 +300,36 @@ export async function main(params?: ScraperParams): Promise<ScraperResult> {
       const text = await extractTextFromPdf(outPath);
       const dispositivo = extractDispositivoWindow(text);
       const { label, excerpt } = extractOutcome(dispositivo);
+      const meta = extractMetadata(text);
 
       const processNumber = processNumberRaw || nuProcesso;
       insert.run({
         source_url: pdfUrl,
         process_number: processNumber,
         judge_name: JUIZ,
-        court_unit: "",
-        decision_date: "",
+        court_unit: meta.vara || "",
+        decision_date: meta.decisionDate || "",
         outcome_label: label,
         outcome_excerpt: excerpt,
         pdf_path: outPath,
         text_len: text.length,
         has_text: text.length > 0 ? 1 : 0,
+        classe: meta.classe || "",
+        assunto: meta.assunto || "",
+        requerente: meta.requerente || "",
+        requerido: meta.requerido || "",
       });
       decisions.push({
         process_number: processNumber,
         judge_name: JUIZ,
         outcome_label: label,
         outcome_excerpt: excerpt,
+        classe: meta.classe,
+        assunto: meta.assunto,
+        court_unit: meta.vara,
+        decision_date: meta.decisionDate,
+        requerente: meta.requerente,
+        requerido: meta.requerido,
       });
       // #region agent log
       agentLog("pre-fix-2", "H7", "src/scraper.ts:225", "row inserted", {

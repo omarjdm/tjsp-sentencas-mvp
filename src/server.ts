@@ -58,7 +58,8 @@ app.get("/api/decisions", (_req, res) => {
     const db = openDb();
     const rows = db
       .prepare(
-        `SELECT process_number, judge_name, outcome_label, outcome_excerpt, fetched_at
+        `SELECT process_number, judge_name, outcome_label, outcome_excerpt,
+                classe, assunto, court_unit, decision_date, requerente, requerido, fetched_at
          FROM decisions
          ORDER BY fetched_at DESC
          LIMIT 500`

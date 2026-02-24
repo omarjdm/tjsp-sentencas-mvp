@@ -54,13 +54,22 @@ async function runTests(fullScraper: boolean): Promise<{ passed: number; failed:
     errors.push(`GET /: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // 2. GET /api/decisions - deve retornar JSON
+  // 2. GET /api/decisions - deve retornar JSON com classe, assunto, court_unit, decision_date, requerente, requerido
   try {
     const res = await fetch(`${BASE_URL}/api/decisions`);
-    const data = (await res.json()) as { decisions?: unknown[]; error?: string };
+    const data = (await res.json()) as { decisions?: Record<string, unknown>[]; error?: string };
     if (res.ok && Array.isArray(data.decisions)) {
       passed++;
       console.log(`✓ GET /api/decisions retorna JSON (${data.decisions.length} decisões)`);
+      const first = data.decisions[0] as Record<string, unknown> | undefined;
+      const hasMeta = first && "classe" in first && "assunto" in first && "requerente" in first && "requerido" in first;
+      if (first && hasMeta) {
+        passed++;
+        console.log("✓ GET /api/decisions inclui classe, assunto, requerente, requerido");
+      } else if (data.decisions.length > 0) {
+        failed++;
+        errors.push(`GET /api/decisions: decisões sem metadados (classe, assunto, etc.)`);
+      }
     } else if (res.ok && data.error) {
       passed++;
       console.log("✓ GET /api/decisions retorna JSON (erro do banco tratado)");

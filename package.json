@@ -11,7 +11,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "PLAYWRIGHT_BROWSERS_PATH=./.playwright ts-node src/server.ts",
     "test:e2e": "PORT=3001 npx ts-node scripts/e2e-test.ts",
-    "test:e2e:full": "PORT=3001 npx ts-node scripts/e2e-test.ts --full"
+    "test:e2e:full": "PORT=3001 npx ts-node scripts/e2e-test.ts --full",
+    "test:metadata": "npx ts-node src/pdf/testMetadataExtract.ts"
   },
   "keywords": [],
   "author": "",

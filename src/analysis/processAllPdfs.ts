@@ -4,6 +4,7 @@ import path from "path";
 import { extractTextFromPdf } from "../pdf/extractText";
 import { extractDispositivoWindow } from "./findDispositivo";
 import { extractOutcome } from "../parse/outcome";
+import { extractMetadata } from "./extractMetadata";
 import { openDb } from "../db";
 
 async function run() {
@@ -17,7 +18,13 @@ async function run() {
       outcome_excerpt,
       pdf_path,
       text_len,
-      has_text
+      has_text,
+      court_unit,
+      decision_date,
+      classe,
+      assunto,
+      requerente,
+      requerido
     ) VALUES (
       @process_number,
       @judge_name,
@@ -25,7 +32,13 @@ async function run() {
       @outcome_excerpt,
       @pdf_path,
       @text_len,
-      @has_text
+      @has_text,
+      @court_unit,
+      @decision_date,
+      @classe,
+      @assunto,
+      @requerente,
+      @requerido
     )
   `);
 
@@ -48,6 +61,8 @@ async function run() {
 
     const { label, excerpt } = extractOutcome(dispositivo);
 
+    const meta = extractMetadata(text);
+
     insert.run({
       process_number: file.replace(".pdf", ""),
       judge_name: process.env.JUIZ ?? "Desconhecido",
@@ -55,7 +70,13 @@ async function run() {
       outcome_excerpt: excerpt,
       pdf_path: fullPath,
       text_len: text.length,
-      has_text: hasText
+      has_text: hasText,
+      court_unit: meta.vara || "",
+      decision_date: meta.decisionDate || "",
+      classe: meta.classe || "",
+      assunto: meta.assunto || "",
+      requerente: meta.requerente || "",
+      requerido: meta.requerido || "",
     });
   }
 

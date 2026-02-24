@@ -27,15 +27,17 @@ function agentLog(runId: string, hypothesisId: string, location: string, message
   }).catch(() => {});
 }
 
-export function openDb(path = process.env.DB_PATH ?? "data/dev.db"): InstanceType<typeof Database> {
+export function openDb(dbPath = process.env.DB_PATH ?? "data/dev.db"): InstanceType<typeof Database> {
+  const path = require("path");
+  const resolved = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
   // #region agent log
   agentLog("pre-fix", "H1", "src/db.ts:31", "openDb called", {
-    pathArg: path,
+    pathArg: resolved,
     envDbPath: process.env.DB_PATH ?? null,
   });
   // #endregion
 
-  const db = new Database(path);
+  const db = new Database(resolved);
   db.pragma("journal_mode = WAL");
 
   // #region agent log
@@ -60,6 +62,15 @@ export function openDb(path = process.env.DB_PATH ?? "data/dev.db"): InstanceTyp
       fetched_at TEXT DEFAULT (datetime('now'))
     );
   `);
+
+  // Migração: adicionar colunas se não existirem
+  for (const col of ["classe", "assunto", "requerente", "requerido"]) {
+    try {
+      db.exec(`ALTER TABLE decisions ADD COLUMN ${col} TEXT`);
+    } catch (e) {
+      if (!String(e).includes("duplicate column name")) throw e;
+    }
+  }
 
   return db;
 }

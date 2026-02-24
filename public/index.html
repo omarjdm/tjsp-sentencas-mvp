@@ -166,6 +166,12 @@
       <thead>
         <tr>
           <th>Processo</th>
+          <th>Classe</th>
+          <th>Assunto</th>
+          <th>Vara</th>
+          <th>Data</th>
+          <th>Requerente</th>
+          <th>Requerido</th>
           <th>Juiz</th>
           <th>Resultado</th>
           <th>Trecho</th>
@@ -246,23 +252,7 @@
         summaryText.textContent = `${data.downloaded} PDF(s) baixado(s), ${data.processed} processado(s).`;
 
         resultsSection.classList.remove('hidden');
-        resultsBody.innerHTML = '';
-
-        if (data.decisions && data.decisions.length > 0) {
-          data.decisions.forEach((d) => {
-            const tr = document.createElement('tr');
-            const excerpt = (d.outcome_excerpt || '').slice(0, 120);
-            tr.innerHTML = `
-              <td>${escapeHtml(d.process_number)}</td>
-              <td>${escapeHtml(d.judge_name)}</td>
-              <td>${escapeHtml(d.outcome_label)}</td>
-              <td><span class="excerpt" title="${escapeHtml(d.outcome_excerpt || '')}">${escapeHtml(excerpt)}${excerpt.length >= 120 ? '…' : ''}</span></td>
-            `;
-            resultsBody.appendChild(tr);
-          });
-        } else {
-          resultsBody.innerHTML = '<tr><td colspan="4">Nenhuma decisão encontrada.</td></tr>';
-        }
+        renderDecisions(data.decisions);
       } catch (err) {
         showError(err.message || 'Erro ao conectar com o servidor.');
       } finally {
@@ -275,6 +265,48 @@
       div.textContent = s ?? '';
       return div.innerHTML;
     }
+
+    function renderDecisions(decisions) {
+      resultsBody.innerHTML = '';
+      if (decisions && decisions.length > 0) {
+        decisions.forEach((d) => {
+          const tr = document.createElement('tr');
+          const excerpt = (d.outcome_excerpt || '').slice(0, 120);
+          tr.innerHTML = `
+            <td>${escapeHtml(d.process_number)}</td>
+            <td>${escapeHtml(d.classe || '-')}</td>
+            <td>${escapeHtml(d.assunto || '-')}</td>
+            <td>${escapeHtml(d.court_unit || '-')}</td>
+            <td>${escapeHtml(d.decision_date || '-')}</td>
+            <td>${escapeHtml(d.requerente || '-')}</td>
+            <td>${escapeHtml(d.requerido || '-')}</td>
+            <td>${escapeHtml(d.judge_name)}</td>
+            <td>${escapeHtml(d.outcome_label)}</td>
+            <td><span class="excerpt" title="${escapeHtml(d.outcome_excerpt || '')}">${escapeHtml(excerpt)}${excerpt.length >= 120 ? '…' : ''}</span></td>
+          `;
+          resultsBody.appendChild(tr);
+        });
+      } else {
+        resultsBody.innerHTML = '<tr><td colspan="10">Nenhuma decisão encontrada.</td></tr>';
+      }
+    }
+
+    async function loadAllDecisions() {
+      try {
+        const res = await fetch('/api/decisions');
+        const data = await res.json();
+        if (res.ok && data.decisions) {
+          resultsSection.classList.remove('hidden');
+          summary.classList.remove('hidden');
+          summaryText.textContent = `${data.decisions.length} decisão(ões) no banco.`;
+          renderDecisions(data.decisions);
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar decisões:', err);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadAllDecisions);
   </script>
 </body>
 </html>
