@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.db
+.playwright/
+.DS_Store
+runs/raw/*.png
+runs/raw/*.pdf
+runs/raw/*.txt
